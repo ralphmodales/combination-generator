@@ -4,6 +4,7 @@ from itertools import combinations_with_replacement, product
 from collections import Counter
 from typing import Dict, List
 import json
+import platform
 import os
 import pandas as pd
 from PIL import Image, ImageTk, ImageSequence
@@ -13,6 +14,8 @@ class CombinationGeneratorGUI:
         self.root = root
         self.root.title("Combination Generator")
         self.root.geometry("800x600")
+        
+        self.set_icon()
         
         self.categories = {}
         self.all_combinations = []
@@ -33,6 +36,16 @@ class CombinationGeneratorGUI:
         style.configure('Custom.TButton', padding=5)
         
         self.load_categories()
+        
+    def set_icon(self):
+        if platform.system() == "Windows":
+            self.root.iconbitmap("icon/sukuna.ico") 
+        else:
+            try:
+                self.icon_image = ImageTk.PhotoImage(file="icon/sukuna.png") 
+                self.root.iconphoto(True, self.icon_image)
+            except Exception as e:
+                print(f"Failed to set icon: {e}")
 
     def create_category_frame(self):
         category_frame = ttk.LabelFrame(self.main_frame, text="Add Category", padding="5")
