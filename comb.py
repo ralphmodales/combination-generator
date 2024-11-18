@@ -6,11 +6,12 @@ from typing import Dict, List
 import json
 import os
 import pandas as pd
+from PIL import Image, ImageTk, ImageSequence
 
 class CombinationGeneratorGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Custom Combination Generator")
+        self.root.title("Combination Generator")
         self.root.geometry("800x600")
         
         self.categories = {}
@@ -103,6 +104,28 @@ class CombinationGeneratorGUI:
         clear_btn = ttk.Button(buttons_frame, text="Clear All", 
                               command=self.clear_all, style='Custom.TButton')
         clear_btn.grid(row=0, column=3, padx=5)
+        
+        self.gif_label = tk.Label(results_frame)
+        self.gif_label.grid(row=0, column=2, rowspan=2, padx=10, pady=5, sticky=(tk.N, tk.S))
+
+        self.credit_label = tk.Label(results_frame, text="made by @ralphmodales", font=("Arial", 10), fg="gray")
+        self.credit_label.grid(row=2, column=2, padx=10, pady=(0, 10), sticky=(tk.S))
+
+        self.display_gif("sukuna.gif")
+        
+    def display_gif(self, gif_path):
+        self.gif_image = Image.open(gif_path)
+        self.gif_frames = [ImageTk.PhotoImage(frame) for frame in ImageSequence.Iterator(self.gif_image)]
+        self.gif_index = 0
+        
+        def update_frame():
+            if self.gif_frames:
+                frame = self.gif_frames[self.gif_index]
+                self.gif_label.config(image=frame)
+                self.gif_index = (self.gif_index + 1) % len(self.gif_frames)
+                self.root.after(100, update_frame) 
+        
+        update_frame()
 
     def add_category(self):
         category = self.category_entry.get().strip()
