@@ -13,12 +13,13 @@ class CombinationGeneratorGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Combination Generator")
-        self.root.geometry("800x600")
+        self.root.geometry("1100x600")
         
         self.set_icon()
         
         self.categories = {}
         self.all_combinations = []
+        self.combination_history = []
         
         self.main_frame = ttk.Frame(root, padding="10")
         self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -126,6 +127,14 @@ class CombinationGeneratorGUI:
 
         self.display_gif("sukuna.gif")
         
+        history_btn = ttk.Button(buttons_frame, text="View History", 
+                         command=self.view_history, style='Custom.TButton')
+        history_btn.grid(row=0, column=4, padx=5)
+
+        export_history_btn = ttk.Button(buttons_frame, text="Export History", 
+                                        command=self.export_history_to_excel, style='Custom.TButton')
+        export_history_btn.grid(row=0, column=5, padx=5)
+        
     def display_gif(self, gif_path):
         self.gif_image = Image.open(gif_path)
         self.gif_frames = [ImageTk.PhotoImage(frame) for frame in ImageSequence.Iterator(self.gif_image)]
@@ -220,7 +229,67 @@ class CombinationGeneratorGUI:
             self.combinations_text.insert(tk.END, f"... and {len(self.all_combinations) - 10} more combinations\n")
         
         self.export_excel_btn.config(state=tk.NORMAL)
+        
+        history_entry = {
+        'timestamp': pd.Timestamp.now(),
+        'categories': self.categories.copy(),
+        'combinations': self.all_combinations
+        }
+        self.combination_history.append(history_entry)
 
+    def view_history(self):
+        if not self.combination_history:
+            messagebox.showinfo("History", "No combination history available.")
+            return
+
+        history_window = tk.Toplevel(self.root)
+        history_window.title("Combination Generation History")
+        history_window.geometry("600x400")
+
+        history_text = tk.Text(history_window, wrap=tk.WORD)
+        history_text.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+
+        for i, entry in enumerate(self.combination_history, 1):
+            history_text.insert(tk.END, f"History Entry {i} - {entry['timestamp']}\n")
+            history_text.insert(tk.END, "Categories:\n")
+            for category, data in entry['categories'].items():
+                history_text.insert(tk.END, f"  {category} (Quantity: {data['quantity']}): {', '.join(data['items'])}\n")
+            history_text.insert(tk.END, f"Total Combinations: {len(entry['combinations'])}\n\n")
+
+        scrollbar = ttk.Scrollbar(history_window, command=history_text.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        history_text.configure(yscrollcommand=scrollbar.set)
+
+    def export_history_to_excel(self):
+        if not self.combination_history:
+            messagebox.showwarning("Warning", "No combination history available!")
+            return
+        
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")]
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            all_history_data = []
+            for entry in self.combination_history:
+                entry_data = {
+                    'Timestamp': entry['timestamp'],
+                    'Categories': json.dumps(entry['categories']),
+                    'Total Combinations': len(entry['combinations'])
+                }
+                all_history_data.append(entry_data)
+            
+            df = pd.DataFrame(all_history_data)
+            df.to_excel(file_path, index=False)
+            
+            messagebox.showinfo("Success", f"Combination history exported to {file_path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to export history: {str(e)}")
+            
     def calculate_combinations(self) -> List[Counter]:
         def generate_valid_combinations(category, items, total_quantity):
             unique_combos = []
@@ -274,27 +343,21 @@ class CombinationGeneratorGUI:
         
         try:
             headers = ["Combination"]
-            for category, data in self.categories.items():
-                for item in data["items"]:
-                    headers.append(f"{item} ({category})")
             
             excel_data = [headers]
             
             for i, combo in enumerate(self.all_combinations, 1):
                 combo_parts = []
-                row_data = [f"Combination {i}"]
                 
                 for category, data in self.categories.items():
                     for item in data['items']:
                         item_count = combo.get(item, 0)
-                        row_data.append(item_count)
                         
                         if item_count > 0:
                             combo_parts.append(f"{item_count} pcs {item} {category}")
                 
                 combination_description = " + ".join(combo_parts)
-                row_data[0] = combination_description
-                excel_data.append(row_data)
+                excel_data.append([combination_description])
             
             df = pd.DataFrame(excel_data[1:], columns=excel_data[0])
             df.to_excel(file_path, index=False)
