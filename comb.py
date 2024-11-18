@@ -225,12 +225,9 @@ class CombinationGeneratorGUI:
         def generate_valid_combinations(category, items, total_quantity):
             unique_combos = []
             
-            # Generate all possible combinations
             for distribution in combinations_with_replacement(range(len(items)), total_quantity):
-                # Count occurrences of each item in this distribution
                 combo = Counter(items[i] for i in distribution)
-                
-                # Only add if this is a unique combination
+
                 if combo not in unique_combos:
                     unique_combos.append(combo)
             
