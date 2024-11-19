@@ -1,0 +1,1 @@
+[{"id": "dc30ca84-fe87-4129-adda-b29e4adde99a", "timestamp": "2024-11-19 20:07:56", "categories": {"Chicken": {"items": ["Spicy", "Classic"], "quantity": 3}}, "combinations": [{"Spicy": 3}, {"Spicy": 2, "Classic": 1}, {"Spicy": 1, "Classic": 2}, {"Classic": 3}], "total_combinations": 4}]

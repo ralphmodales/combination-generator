@@ -8,6 +8,8 @@ import platform
 import os
 import pandas as pd
 from PIL import Image, ImageTk, ImageSequence
+import uuid
+from datetime import datetime
 
 class CombinationGeneratorGUI:
     def __init__(self, root):
@@ -37,6 +39,7 @@ class CombinationGeneratorGUI:
         style.configure('Custom.TButton', padding=5)
         
         self.load_categories()
+        self.load_history()
         
     def set_icon(self):
         if platform.system() == "Windows":
@@ -231,11 +234,15 @@ class CombinationGeneratorGUI:
         self.export_excel_btn.config(state=tk.NORMAL)
         
         history_entry = {
-        'timestamp': pd.Timestamp.now(),
-        'categories': self.categories.copy(),
-        'combinations': self.all_combinations
+            'id': str(uuid.uuid4()),
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'categories': self.categories.copy(),
+            'combinations': self.all_combinations,
+            'total_combinations': len(self.all_combinations)
         }
         self.combination_history.append(history_entry)
+        
+        self.save_history()
 
     def view_history(self):
         if not self.combination_history:
@@ -244,21 +251,124 @@ class CombinationGeneratorGUI:
 
         history_window = tk.Toplevel(self.root)
         history_window.title("Combination Generation History")
-        history_window.geometry("600x400")
+        history_window.geometry("800x500")
 
-        history_text = tk.Text(history_window, wrap=tk.WORD)
-        history_text.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+        history_frame = ttk.Frame(history_window)
+        history_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        for i, entry in enumerate(self.combination_history, 1):
-            history_text.insert(tk.END, f"History Entry {i} - {entry['timestamp']}\n")
-            history_text.insert(tk.END, "Categories:\n")
+        history_listbox = tk.Listbox(history_frame, width=50, font=("Arial", 10))
+        history_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        history_scrollbar = ttk.Scrollbar(history_frame, command=history_listbox.yview)
+        history_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        history_listbox.config(yscrollcommand=history_scrollbar.set)
+
+        for entry in self.combination_history:
+            display_text = f"{entry['timestamp']} - {len(entry['combinations'])} combinations"
+            history_listbox.insert(tk.END, display_text)
+
+        details_frame = ttk.Frame(history_window)
+        details_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        details_text = tk.Text(details_frame, wrap=tk.WORD)
+        details_text.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        button_frame = ttk.Frame(details_frame)
+        button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=5)
+
+        def show_history_details(event):
+            selection = history_listbox.curselection()
+            if not selection:
+                return
+
+            details_text.delete(1.0, tk.END)
+
+            index = selection[0]
+            entry = self.combination_history[index]
+
+            details_text.insert(tk.END, f"Timestamp: {entry['timestamp']}\n")
+            details_text.insert(tk.END, f"Total Combinations: {entry['total_combinations']}\n\n")
+            details_text.insert(tk.END, "Categories:\n")
             for category, data in entry['categories'].items():
-                history_text.insert(tk.END, f"  {category} (Quantity: {data['quantity']}): {', '.join(data['items'])}\n")
-            history_text.insert(tk.END, f"Total Combinations: {len(entry['combinations'])}\n\n")
+                details_text.insert(tk.END, f"  {category} (Quantity: {data['quantity']}): {', '.join(data['items'])}\n")
 
-        scrollbar = ttk.Scrollbar(history_window, command=history_text.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        history_text.configure(yscrollcommand=scrollbar.set)
+        def export_selected_history():
+            selection = history_listbox.curselection()
+            if not selection:
+                messagebox.showwarning("Warning", "Please select a history entry to export.")
+                return
+
+            entry = self.combination_history[selection[0]]
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".xlsx",
+                filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")]
+            )
+            
+            if not file_path:
+                return
+            
+            try:
+                headers = ["Combination"]
+                excel_data = [headers]
+                
+                for combo in entry['combinations']:
+                    combo_parts = []
+                    for category, data in entry['categories'].items():
+                        for item in data['items']:
+                            item_count = combo.get(item, 0)
+                            if item_count > 0:
+                                combo_parts.append(f"{item_count} pcs {item} {category}")
+                    
+                    combination_description = " + ".join(combo_parts)
+                    excel_data.append([combination_description])
+                
+                df = pd.DataFrame(excel_data[1:], columns=excel_data[0])
+                df.to_excel(file_path, index=False)
+                
+                messagebox.showinfo("Success", f"Combinations exported to {file_path}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to export to Excel: {str(e)}")
+
+        def delete_selected_history():
+            selection = history_listbox.curselection()
+            if not selection:
+                messagebox.showwarning("Warning", "Please select a history entry to delete.")
+                return
+
+            if messagebox.askyesno("Confirm", "Are you sure you want to delete this history entry?"):
+                del self.combination_history[selection[0]]
+                history_listbox.delete(selection[0])
+                details_text.delete(1.0, tk.END)
+                self.save_history()
+
+        history_listbox.bind('<<ListboxSelect>>', show_history_details)
+
+        export_btn = ttk.Button(button_frame, text="Export to Excel", command=export_selected_history)
+        export_btn.pack(side=tk.LEFT, padx=5)
+
+        delete_btn = ttk.Button(button_frame, text="Delete Entry", command=delete_selected_history)
+        delete_btn.pack(side=tk.RIGHT, padx=5)
+
+    def load_history(self):
+        try:
+            if os.path.exists('combination_history.json'):
+                with open('combination_history.json', 'r') as f:
+                    self.combination_history = json.load(f)
+            else:
+                self.combination_history = []
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load history: {str(e)}")
+            self.combination_history = []
+
+    def save_history(self):
+        try:
+            if len(self.combination_history) > 50:
+                self.combination_history = self.combination_history[-50:]
+
+            with open('combination_history.json', 'w') as f:
+                json.dump(self.combination_history, f)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save history: {str(e)}")
 
     def export_history_to_excel(self):
         if not self.combination_history:
@@ -279,7 +389,7 @@ class CombinationGeneratorGUI:
                 entry_data = {
                     'Timestamp': entry['timestamp'],
                     'Categories': json.dumps(entry['categories']),
-                    'Total Combinations': len(entry['combinations'])
+                    'Total Combinations': entry['total_combinations']
                 }
                 all_history_data.append(entry_data)
             
